@@ -11,8 +11,8 @@ blueprint:
         text: {}
     target_group:
       name: Fernbedienungsgruppe
-      description: Welche Gruppe der Fernbedienung (1, 2 oder 3) soll diesen Streifen steuern? (Aus dem Log geht Gruppe 3 hervor).
-      default: 3
+      description: Welche Gruppe der Fernbedienung (1, 2 oder 3) soll diesen Streifen steuern?
+      default:
       selector:
         number:
           min: 1
