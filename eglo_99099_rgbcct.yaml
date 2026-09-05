@@ -16,8 +16,7 @@ blueprint:
       selector:
         target:
           entity:
-            filter:
-              - domain: light
+            domain: light
     favorite_1_color:
       name: Favorit 1 RGB-Farbe
       description: RGB-Farbwert für Taste Recall_1.
