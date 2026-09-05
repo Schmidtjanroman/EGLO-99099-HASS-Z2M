@@ -1,0 +1,240 @@
+blueprint:
+  name: EGLO 99099 Remote - Zigbee2MQTT RGB-CCT Steuerung
+  description: Steuerung eines RGB-CCT LED-Streifens über die EGLO 99099 Fernbedienung via Zigbee2MQTT.
+  domain: automation
+  input:
+    remote_action_sensor:
+      name: Fernbedienung Action Sensor
+      description: Der Action-Sensor der EGLO 99099 aus Zigbee2MQTT (z. B. sensor.paula_remote_action).
+      selector:
+        entity:
+          filter:
+            - domain: sensor
+    target_light:
+      name: LED-Streifen
+      description: Der zu steuernde RGB-CCT LED-Streifen.
+      selector:
+        target:
+          entity:
+            filter:
+              - domain: light
+    favorite_1_color:
+      name: Favorit 1 RGB-Farbe
+      description: RGB-Farbwert für Taste Recall_1.
+      default: [255, 140, 0]
+      selector:
+        color_rgb: {}
+    favorite_2_color:
+      name: Favorit 2 RGB-Farbe
+      description: RGB-Farbwert für Taste Recall_2.
+      default: [160, 32, 240]
+      selector:
+        color_rgb: {}
+    brightness_step:
+      name: Helligkeitsschritt
+      description: Prozentuale Änderung der Helligkeit pro Tastendruck.
+      default: 10
+      selector:
+        number:
+          min: 1
+          max: 50
+          unit_of_measurement: "%"
+          mode: slider
+    cct_step:
+      name: Farbtemperaturschritt
+      description: Änderung der Farbtemperatur in Kelvin pro Tastendruck.
+      default: 400
+      selector:
+        number:
+          min: 100
+          max: 1000
+          step: 50
+          unit_of_measurement: "K"
+          mode: slider
+
+mode: restart
+max_exceeded: silent
+
+trigger:
+  - platform: state
+    entity_id: !input remote_action_sensor
+    to: ~
+
+condition:
+  - condition: template
+    value_template: "{{ trigger.to_state.state not in ['', 'None', 'unknown', 'unavailable'] }}"
+
+action:
+  - variables:
+      action: "{{ trigger.to_state.state }}"
+      target_light_target: !input target_light
+      step_pct: !input brightness_step
+      step_k: !input cct_step
+      fav1: !input favorite_1_color
+      fav2: !input favorite_2_color
+      light_entity: >
+        {% if target_light_target.entity_id is string %}
+          {{ target_light_target.entity_id }}
+        {% elif target_light_target.entity_id is iterable %}
+          {{ target_light_target.entity_id[0] }}
+        {% else %}
+          none
+        {% endif %}
+
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ action == 'on' }}"
+        sequence:
+          - action: light.turn_on
+            target: !input target_light
+
+      - conditions:
+          - condition: template
+            value_template: "{{ action == 'off' }}"
+        sequence:
+          - action: light.turn_off
+            target: !input target_light
+
+      - conditions:
+          - condition: template
+            value_template: "{{ action == 'brightness_step_up' }}"
+        sequence:
+          - action: light.turn_on
+            target: !input target_light
+            data:
+              brightness_step_pct: "{{ step_pct }}"
+
+      - conditions:
+          - condition: template
+            value_template: "{{ action == 'brightness_step_down' }}"
+        sequence:
+          - action: light.turn_on
+            target: !input target_light
+            data:
+              brightness_step_pct: "{{ -1 * step_pct }}"
+
+      - conditions:
+          - condition: template
+            value_template: "{{ action == 'color_temperature_step_up' }}"
+        sequence:
+          - action: light.turn_on
+            target: !input target_light
+            data:
+              color_temp_kelvin: >
+                {% set cur_k = state_attr(light_entity, 'color_temp_kelvin') | default(3000, true) | int %}
+                {% set max_k = state_attr(light_entity, 'max_color_temp_kelvin') | default(6500, true) | int %}
+                {{ [cur_k + step_k, max_k] | min }}
+
+      - conditions:
+          - condition: template
+            value_template: "{{ action == 'color_temperature_step_down' }}"
+        sequence:
+          - action: light.turn_on
+            target: !input target_light
+            data:
+              color_temp_kelvin: >
+                {% set cur_k = state_attr(light_entity, 'color_temp_kelvin') | default(3000, true) | int %}
+                {% set min_k = state_attr(light_entity, 'min_color_temp_kelvin') | default(2200, true) | int %}
+                {{ [cur_k - step_k, min_k] | max }}
+
+      - conditions:
+          - condition: template
+            value_template: "{{ action == 'red' }}"
+        sequence:
+          - action: light.turn_on
+            target: !input target_light
+            data:
+              rgb_color: [255, 0, 0]
+
+      - conditions:
+          - condition: template
+            value_template: "{{ action == 'green' }}"
+        sequence:
+          - action: light.turn_on
+            target: !input target_light
+            data:
+              rgb_color: [0, 255, 0]
+
+      - conditions:
+          - condition: template
+            value_template: "{{ action == 'blue' }}"
+        sequence:
+          - action: light.turn_on
+            target: !input target_light
+            data:
+              rgb_color: [0, 0, 255]
+
+      - conditions:
+          - condition: template
+            value_template: "{{ action == 'recall_1' }}"
+        sequence:
+          - action: light.turn_on
+            target: !input target_light
+            data:
+              rgb_color: "{{ fav1 }}"
+
+      - conditions:
+          - condition: template
+            value_template: "{{ action == 'recall_2' }}"
+        sequence:
+          - action: light.turn_on
+            target: !input target_light
+            data:
+              rgb_color: "{{ fav2 }}"
+
+      - conditions:
+          - condition: template
+            value_template: "{{ action == 'refresh_colored' }}"
+        sequence:
+          - action: light.turn_on
+            target: !input target_light
+            data:
+              rgb_color: >
+                {% set palette = [
+                  [255, 0, 0],
+                  [255, 128, 0],
+                  [255, 255, 0],
+                  [0, 255, 0],
+                  [0, 255, 255],
+                  [0, 0, 255],
+                  [128, 0, 255],
+                  [255, 0, 255]
+                ] %}
+                {% set cur_rgb = state_attr(light_entity, 'rgb_color') %}
+                {% set cur_mode = state_attr(light_entity, 'color_mode') %}
+                {% if cur_mode != 'rgb' or cur_rgb is none %}
+                  {{ palette[0] }}
+                {% else %}
+                  {% set ns = namespace(found=-1) %}
+                  {% for c in palette %}
+                    {% if c[0] == cur_rgb[0] and c[1] == cur_rgb[1] and c[2] == cur_rgb[2] %}
+                      {% set ns.found = loop.index0 %}
+                    {% endif %}
+                  {% endfor %}
+                  {% if ns.found != -1 %}
+                    {% set next_idx = (ns.found + 1) % (palette | length) %}
+                    {{ palette[next_idx] }}
+                  {% else %}
+                    {{ palette[0] }}
+                  {% endif %}
+                {% endif %}
+
+      - conditions:
+          - condition: template
+            value_template: "{{ action == 'refresh' }}"
+        sequence:
+          - choose:
+              - conditions:
+                  - condition: template
+                    value_template: "{{ state_attr(light_entity, 'color_mode') == 'color_temp' }}"
+                sequence:
+                  - action: light.turn_on
+                    target: !input target_light
+                    data:
+                      rgb_color: [255, 0, 0]
+            default:
+              - action: light.turn_on
+                target: !input target_light
+                data:
+                  color_temp_kelvin: 3000
