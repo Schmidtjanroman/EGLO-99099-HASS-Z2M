@@ -1,20 +1,27 @@
 blueprint:
-  name: EGLO 99099 Remote - Zigbee2MQTT RGB-CCT Steuerung (v0.10)
+  name: EGLO 99099 Remote - Zigbee2MQTT RGB-CCT Steuerung (v0.12)
   description: >
-    Version: 0.10 - Steuerung eines RGB-CCT LED-Streifens über die EGLO 99099 Fernbedienung via Zigbee2MQTT.
-    Flexibel für mehrere Fernbedienungen über Geräte-Auswahl, Gruppen-Dropdown (1, 2, 3 oder Alle)
-    und 16-stufigen Farbzyklus.
+    Version: 0.12
+    Steuerung eines RGB-CCT LED-Streifens über die EGLO 99099 Fernbedienung via Zigbee2MQTT.
+    Nutzt direkte Sensor-Entitäten zur fehlerfreien Erkennung unabhängig vom MQTT-Topic.
   domain: automation
   input:
-    remote_device:
-      name: Fernbedienung
-      description: Das EGLO 99099 Gerät auswählen.
+    remote_action_sensor:
+      name: Action Sensor
+      description: Der Haupt-Action Sensor (z.B. sensor.paula_remote_action)
       selector:
-        device:
-          integration: mqtt
-          manufacturer: EGLO
+        entity:
+          filter:
+            - domain: sensor
+    remote_group_sensor:
+      name: Action Group Sensor
+      description: Der Gruppen-Sensor (z.B. sensor.paula_remote_action_group)
+      selector:
+        entity:
+          filter:
+            - domain: sensor
     remote_group:
-      name: Fernbedienungsgruppe
+      name: Zu steuernde Gruppe
       description: Auf welche Taste/Gruppe der Fernbedienung soll reagiert werden?
       default: "all"
       selector:
@@ -69,39 +76,25 @@ mode: restart
 max_exceeded: silent
 
 trigger:
-  - platform: mqtt
-    topic: zigbee2mqtt/#
+  - platform: state
+    entity_id: !input remote_action_sensor
+    to: ~
 
 variables:
-  device_id: !input remote_device
   selected_grp: !input remote_group
+  group_sensor_entity: !input remote_group_sensor
   light_entity: !input target_light
   step_pct: !input brightness_step
   step_k: !input cct_step
   fav1: !input favorite_1_color
   fav2: !input favorite_2_color
-  pl: "{{ trigger.payload_json if trigger.payload_json is defined and trigger.payload_json is mapping else {} }}"
-  action: "{{ pl.action | default('') }}"
-  current_group: "{{ pl.action_group | default('') | string }}"
-  # Holt die IEEE-Adresse des ausgewählten Geräts aus den Identifiers
-  device_identifiers: "{{ device_attr(device_id, 'identifiers') | default([]) }}"
-  ieee_addr: >
-    {% set ns = namespace(addr='') %}
-    {% for item in device_identifiers %}
-      {% if item[0] == 'zigbee2mqtt' and item[1].startswith('0x') %}
-        {% set ns.addr = item[1] %}
-      {% endif %}
-    {% endfor %}
-    {{ ns.addr }}
-  device_name: "{{ device_attr(device_id, 'name') }}"
+  action: "{{ trigger.to_state.state if trigger.to_state is defined else '' }}"
+  current_group: "{{ states(group_sensor_entity) | string }}"
 
 condition:
   - condition: template
     value_template: >
-      {% set topic_matches = (trigger.topic == 'zigbee2mqtt/' ~ device_name) or (ieee_addr != '' and trigger.topic == 'zigbee2mqtt/' ~ ieee_addr) %}
-      {% set group_matches = (selected_grp == 'all' or current_group == selected_grp) %}
-      {% set action_valid = action not in ['', none] %}
-      {{ topic_matches and group_matches and action_valid }}
+      {{ action not in ['', 'None', 'unknown', 'unavailable'] and (selected_grp == 'all' or current_group == selected_grp) }}
 
 action:
   - choose:
