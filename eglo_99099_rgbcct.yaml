@@ -1,8 +1,8 @@
 blueprint:
-  name: EGLO 99099 Remote - Zigbee2MQTT RGB-CCT Steuerung (v0.15)
+  name: EGLO 99099 Remote - Zigbee2MQTT RGB-CCT Steuerung (v0.16)
   description: >
-    Version: 0.15
-    Behebt den Variablen-Parsing-Fehler. Das Zwischenspeichern der JSON-Payload in einer Variable hat diese in einen String konvertiert, wodurch die Parameter "action" und "action_group" nicht mehr ausgelesen werden konnten.
+    Version: 0.16
+    Behebt den Typisierungsfehler (Integer vs. String) bei der Gruppenauswertung.
   domain: automation
   input:
     mqtt_topic:
@@ -89,14 +89,14 @@ action:
         {% endif %}
       current_group: >
         {% if trigger.payload_json is defined and trigger.payload_json is mapping and 'action_group' in trigger.payload_json %}
-          {{ trigger.payload_json.action_group | string }}
+          {{ trigger.payload_json.action_group }}
         {% else %}
           {{ '' }}
         {% endif %}
 
   - condition: template
     value_template: >
-      {{ action_trigger not in ['', 'None', 'unknown', 'unavailable', 'none'] and (selected_grp | string == 'all' or current_group == selected_grp | string) }}
+      {{ action_trigger not in ['', 'None', 'unknown', 'unavailable', 'none'] and (selected_grp | string == 'all' or current_group | string == selected_grp | string) }}
 
   - choose:
       - conditions:
