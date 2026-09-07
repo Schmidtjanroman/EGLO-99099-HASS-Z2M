@@ -1,8 +1,10 @@
 blueprint:
-  name: EGLO 99099 Remote - Zigbee2MQTT RGB-CCT Steuerung (v0.16)
+  name: EGLO 99099 Remote - Zigbee2MQTT RGB-CCT Steuerung (v0.17)
   description: >
-    Version: 0.16
-    Behebt den Typisierungsfehler (Integer vs. String) bei der Gruppenauswertung.
+    Version: 0.17
+    Behebt den Fehler im Farbzyklus (Colorcycle). Da Zigbee-Leuchtmittel RGB-Werte intern in das XY-Farbmodell konvertieren, 
+    kam es beim exakten RGB-Abgleich zu Rundungsfehlern (z.B. [255, 63, 0] statt [255, 64, 0]), wodurch der Zyklus hängen blieb. 
+    Die Lösung nutzt nun den Hue/Saturation (HS) Farbraum für einen fehlerfreien 16-Schritte (22.5°) Durchlauf.
   domain: automation
   input:
     mqtt_topic:
@@ -219,42 +221,14 @@ action:
             target:
               entity_id: "{{ light_entity }}"
             data:
-              rgb_color: >
-                {% set palette = [
-                  [255, 0, 0],
-                  [255, 64, 0],
-                  [255, 128, 0],
-                  [255, 192, 0],
-                  [255, 255, 0],
-                  [128, 255, 0],
-                  [0, 255, 0],
-                  [0, 255, 128],
-                  [0, 255, 255],
-                  [0, 128, 255],
-                  [0, 0, 255],
-                  [75, 0, 255],
-                  [140, 0, 255],
-                  [255, 0, 255],
-                  [255, 0, 180],
-                  [255, 0, 90]
-                ] %}
-                {% set cur_rgb = state_attr(light_entity, 'rgb_color') %}
+              hs_color: >
+                {% set cur_hs = state_attr(light_entity, 'hs_color') %}
                 {% set cur_mode = state_attr(light_entity, 'color_mode') %}
-                {% if cur_mode != 'rgb' or cur_rgb is none %}
-                  {{ palette[0] }}
+                {% if cur_hs is none or cur_mode not in ['hs', 'xy', 'rgb'] %}
+                  [0, 100]
                 {% else %}
-                  {% set ns = namespace(found=-1) %}
-                  {% for c in palette %}
-                    {% if c[0] == cur_rgb[0] and c[1] == cur_rgb[1] and c[2] == cur_rgb[2] %}
-                      {% set ns.found = loop.index0 %}
-                    {% endif %}
-                  {% endfor %}
-                  {% if ns.found != -1 %}
-                    {% set next_idx = (ns.found + 1) % (palette | length) %}
-                    {{ palette[next_idx] }}
-                  {% else %}
-                    {{ palette[0] }}
-                  {% endif %}
+                  {% set next_h = (cur_hs[0] + 22.5) | round(1) %}
+                  [{{ next_h if next_h < 360 else next_h - 360 }}, 100]
                 {% endif %}
 
       - conditions:
