@@ -1,14 +1,13 @@
 blueprint:
-  name: EGLO 99099 Remote - Zigbee2MQTT RGB-CCT Steuerung (v0.14)
+  name: EGLO 99099 Remote - Zigbee2MQTT RGB-CCT Steuerung (v0.15)
   description: >
-    Version: 0.14
-    Steuerung eines RGB-CCT LED-Streifens über die EGLO 99099 Fernbedienung via Zigbee2MQTT.
-    Variablen und Bedingungen wurden in den Action-Block verschoben, um stille Fehlschläge bei der JSON-Evaluierung im Trigger-Condition-Block von Home Assistant zu verhindern.
+    Version: 0.15
+    Behebt den Variablen-Parsing-Fehler. Das Zwischenspeichern der JSON-Payload in einer Variable hat diese in einen String konvertiert, wodurch die Parameter "action" und "action_group" nicht mehr ausgelesen werden konnten.
   domain: automation
   input:
     mqtt_topic:
       name: Zigbee2MQTT Base Topic
-      description: Das MQTT-Topic der Fernbedienung genau wie in Z2M benannt (z. B. zigbee2mqtt/Paula Remote). Achte darauf, keine Leerzeichen am Ende zu haben!
+      description: Das MQTT-Topic der Fernbedienung (z. B. zigbee2mqtt/Paula Remote).
       default: "zigbee2mqtt/Paula Remote"
       selector:
         text:
@@ -82,13 +81,22 @@ action:
       step_k: !input cct_step
       fav1: !input favorite_1_color
       fav2: !input favorite_2_color
-      pl: "{{ trigger.payload_json if trigger.payload_json is defined else dict() }}"
-      action_trigger: "{{ pl.action | default('') }}"
-      current_group: "{{ pl.action_group | default('') | string }}"
+      action_trigger: >
+        {% if trigger.payload_json is defined and trigger.payload_json is mapping and 'action' in trigger.payload_json %}
+          {{ trigger.payload_json.action | string }}
+        {% else %}
+          {{ '' }}
+        {% endif %}
+      current_group: >
+        {% if trigger.payload_json is defined and trigger.payload_json is mapping and 'action_group' in trigger.payload_json %}
+          {{ trigger.payload_json.action_group | string }}
+        {% else %}
+          {{ '' }}
+        {% endif %}
 
   - condition: template
     value_template: >
-      {{ action_trigger not in ['', 'None', 'unknown', 'unavailable'] and (selected_grp == 'all' or current_group == selected_grp) }}
+      {{ action_trigger not in ['', 'None', 'unknown', 'unavailable', 'none'] and (selected_grp | string == 'all' or current_group == selected_grp | string) }}
 
   - choose:
       - conditions:
