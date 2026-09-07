@@ -1,10 +1,8 @@
 blueprint:
-  name: EGLO 99099 Remote - Zigbee2MQTT RGB-CCT Steuerung (v0.17)
+  name: EGLO 99099 Remote - Zigbee2MQTT RGB-CCT Steuerung (v0.18)
   description: >
-    Version: 0.17
-    Behebt den Fehler im Farbzyklus (Colorcycle). Da Zigbee-Leuchtmittel RGB-Werte intern in das XY-Farbmodell konvertieren, 
-    kam es beim exakten RGB-Abgleich zu Rundungsfehlern (z.B. [255, 63, 0] statt [255, 64, 0]), wodurch der Zyklus hängen blieb. 
-    Die Lösung nutzt nun den Hue/Saturation (HS) Farbraum für einen fehlerfreien 16-Schritte (22.5°) Durchlauf.
+    Version: 0.18
+    Implementierung der optionalen Szenen-Steuerung über eine Select-Entität auf der Refresh-Taste.
   domain: automation
   input:
     mqtt_topic:
@@ -31,11 +29,19 @@ blueprint:
               value: "3"
     target_light:
       name: LED-Streifen
-      description: Der zu steuernde RGB-CCT LED-Streifen (z. B. Lichtstreifen Hochbett).
+      description: Der zu steuernde RGB-CCT LED-Streifen (z. B. light.hochbett).
       selector:
         entity:
           filter:
             - domain: light
+    target_scene_select:
+      name: Szene (Select Entität)
+      description: Optional. Entität zum Durchschalten der Szenen (z. B. select.hochbett_szene). Überschreibt den Standard-Moduswechsel.
+      default: ""
+      selector:
+        entity:
+          filter:
+            - domain: select
     favorite_1_color:
       name: Favorit 1 RGB-Farbe (Recall_1)
       default: [255, 140, 0]
@@ -79,6 +85,7 @@ action:
   - variables:
       selected_grp: !input remote_group
       light_entity: !input target_light
+      scene_select_entity: !input target_scene_select
       step_pct: !input brightness_step
       step_k: !input cct_step
       fav1: !input favorite_1_color
@@ -238,16 +245,27 @@ action:
           - choose:
               - conditions:
                   - condition: template
-                    value_template: "{{ state_attr(light_entity, 'color_mode') == 'color_temp' }}"
+                    value_template: "{{ scene_select_entity | length > 0 and scene_select_entity != 'none' }}"
                 sequence:
+                  - action: select.select_next
+                    target:
+                      entity_id: "{{ scene_select_entity }}"
+                    data:
+                      cycle: true
+            default:
+              - choose:
+                  - conditions:
+                      - condition: template
+                        value_template: "{{ state_attr(light_entity, 'color_mode') == 'color_temp' }}"
+                    sequence:
+                      - action: light.turn_on
+                        target:
+                          entity_id: "{{ light_entity }}"
+                        data:
+                          rgb_color: [255, 0, 0]
+                default:
                   - action: light.turn_on
                     target:
                       entity_id: "{{ light_entity }}"
                     data:
-                      rgb_color: [255, 0, 0]
-            default:
-              - action: light.turn_on
-                target:
-                  entity_id: "{{ light_entity }}"
-                data:
-                  color_temp_kelvin: 3000
+                      color_temp_kelvin: 3000
