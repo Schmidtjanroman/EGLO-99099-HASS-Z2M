@@ -67,23 +67,24 @@ mode: restart
 max_exceeded: silent
 
 trigger:
-  - platform: device
-    domain: mqtt
-    device_id: !input remote_device
-    type: action
-    subtype: ""
-    discovery_id: ~
+  - platform: mqtt
+    topic: zigbee2mqtt/#
 
 condition:
   - condition: template
     value_template: >
-      {% set selected_grp = input_remote_group | default('all') | string %}
-      {% set event_grp = trigger.event.data.action_group | default(none) | string %}
-      {{ selected_grp == 'all' or event_grp == selected_grp }}
+      {% set dev_id = "!input remote_device" %}
+      {% set dev_name = device_attr(dev_id, 'name') %}
+      {% set expected_topic = 'zigbee2mqtt/' ~ dev_name %}
+      {% set pl = trigger.payload_json if trigger.payload_json is defined else {} %}
+      {% set selected_grp = "!input remote_group" %}
+      {% set action_grp = pl.action_group | default(none) | string %}
+      {{ trigger.topic == expected_topic and pl.action is defined and pl.action not in ['', none] and (selected_grp == 'all' or action_grp == selected_grp) }}
 
 action:
   - variables:
-      action: "{{ trigger.event.data.action | default(trigger.payload | default('')) }}"
+      pl: "{{ trigger.payload_json }}"
+      action: "{{ pl.action }}"
       light_entity: !input target_light
       step_pct: !input brightness_step
       step_k: !input cct_step
