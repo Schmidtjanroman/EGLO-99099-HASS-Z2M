@@ -1,8 +1,10 @@
 blueprint:
-  name: EGLO 99099 Remote - Zigbee2MQTT RGB-CCT Steuerung (v0.20)
+  name: EGLO 99099 Remote - Zigbee2MQTT RGB-CCT Steuerung (v0.21)
   description: >
-    Version: 0.20
-    Behebt die Szenen-Aktivierung. Wenn die Select-Entität den Status 'unknown' hat oder der Licht-Effekt auf 'off' steht, wird nun explizit die erste Szene (select.select_first) geladen. Ist bereits eine Szene aktiv, wird zur nächsten gewechselt.
+    Version: 0.21
+    Die Tasten Rot, Grün und Blau erhöhen nun den jeweiligen Farbkanal um 10.
+    Wird der Maximalwert (255) erreicht, springt der Wert beim nächsten Tastendruck auf 0 zurück.
+    Die Szenen-Auswahl wurde entfernt.
   domain: automation
   input:
     mqtt_topic:
@@ -34,14 +36,6 @@ blueprint:
         entity:
           filter:
             - domain: light
-    target_scene_select:
-      name: Szene (Select Entität)
-      description: Optional. Entität zum Durchschalten der Szenen (z. B. select.hochbett_szene). Überschreibt den Standard-Moduswechsel.
-      default: ""
-      selector:
-        entity:
-          filter:
-            - domain: select
     favorite_1_color:
       name: Favorit 1 RGB-Farbe (Recall_1)
       default: [255, 140, 0]
@@ -85,7 +79,6 @@ action:
   - variables:
       selected_grp: !input remote_group
       light_entity: !input target_light
-      scene_select_entity: !input target_scene_select
       step_pct: !input brightness_step
       step_k: !input cct_step
       fav1: !input favorite_1_color
@@ -178,7 +171,10 @@ action:
             target:
               entity_id: "{{ light_entity }}"
             data:
-              rgb_color: [255, 0, 0]
+              rgb_color: >
+                {% set cur_rgb = state_attr(light_entity, 'rgb_color') or [0, 0, 0] %}
+                {% set next_r = 0 if cur_rgb[0] >= 255 else [cur_rgb[0] + 10, 255] | min %}
+                {{ [next_r, cur_rgb[1], cur_rgb[2]] }}
 
       - conditions:
           - condition: template
@@ -188,7 +184,10 @@ action:
             target:
               entity_id: "{{ light_entity }}"
             data:
-              rgb_color: [0, 255, 0]
+              rgb_color: >
+                {% set cur_rgb = state_attr(light_entity, 'rgb_color') or [0, 0, 0] %}
+                {% set next_g = 0 if cur_rgb[1] >= 255 else [cur_rgb[1] + 10, 255] | min %}
+                {{ [cur_rgb[0], next_g, cur_rgb[2]] }}
 
       - conditions:
           - condition: template
@@ -198,7 +197,10 @@ action:
             target:
               entity_id: "{{ light_entity }}"
             data:
-              rgb_color: [0, 0, 255]
+              rgb_color: >
+                {% set cur_rgb = state_attr(light_entity, 'rgb_color') or [0, 0, 0] %}
+                {% set next_b = 0 if cur_rgb[2] >= 255 else [cur_rgb[2] + 10, 255] | min %}
+                {{ [cur_rgb[0], cur_rgb[1], next_b] }}
 
       - conditions:
           - condition: template
@@ -245,36 +247,16 @@ action:
           - choose:
               - conditions:
                   - condition: template
-                    value_template: "{{ scene_select_entity | length > 0 and scene_select_entity != 'none' }}"
+                    value_template: "{{ state_attr(light_entity, 'color_mode') == 'color_temp' }}"
                 sequence:
-                  - choose:
-                      - conditions:
-                          - condition: template
-                            value_template: "{{ state_attr(light_entity, 'effect') == 'off' or states(scene_select_entity) in ['unknown', 'unavailable', ''] }}"
-                        sequence:
-                          - action: select.select_first
-                            target:
-                              entity_id: "{{ scene_select_entity }}"
-                    default:
-                      - action: select.select_next
-                        target:
-                          entity_id: "{{ scene_select_entity }}"
-                        data:
-                          cycle: true
-            default:
-              - choose:
-                  - conditions:
-                      - condition: template
-                        value_template: "{{ state_attr(light_entity, 'color_mode') == 'color_temp' }}"
-                    sequence:
-                      - action: light.turn_on
-                        target:
-                          entity_id: "{{ light_entity }}"
-                        data:
-                          rgb_color: [255, 0, 0]
-                default:
                   - action: light.turn_on
                     target:
                       entity_id: "{{ light_entity }}"
                     data:
-                      color_temp_kelvin: 3000
+                      rgb_color: [255, 0, 0]
+            default:
+              - action: light.turn_on
+                target:
+                  entity_id: "{{ light_entity }}"
+                data:
+                  color_temp_kelvin: 3000
