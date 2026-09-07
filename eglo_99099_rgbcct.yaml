@@ -1,6 +1,6 @@
 blueprint:
   name: EGLO 99099 Remote - Zigbee2MQTT RGB-CCT Steuerung
-  description: Steuerung eines RGB-CCT LED-Streifens über die EGLO 99099 Fernbedienung via Zigbee2MQTT mit Geräteauswahl, Gruppen-Dropdown und 16-stufigem Farbzyklus.
+  description: V0.8 - Steuerung eines RGB-CCT LED-Streifens über die EGLO 99099 Fernbedienung via Zigbee2MQTT mit Geräteauswahl, Gruppen-Dropdown und 16-stufigem Farbzyklus.
   domain: automation
   input:
     remote_device:
