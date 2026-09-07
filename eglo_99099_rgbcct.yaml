@@ -1,8 +1,8 @@
 blueprint:
-  name: EGLO 99099 Remote - Zigbee2MQTT RGB-CCT Steuerung (v0.19)
+  name: EGLO 99099 Remote - Zigbee2MQTT RGB-CCT Steuerung (v0.20)
   description: >
-    Version: 0.19
-    Implementierung der Szenen-Steuerung. Prüft über das Attribut 'effect', ob eine Farbe oder eine Szene aktiv ist, um entsprechend die aktuelle Szene zu starten oder zur nächsten zu wechseln.
+    Version: 0.20
+    Behebt die Szenen-Aktivierung. Wenn die Select-Entität den Status 'unknown' hat oder der Licht-Effekt auf 'off' steht, wird nun explizit die erste Szene (select.select_first) geladen. Ist bereits eine Szene aktiv, wird zur nächsten gewechselt.
   domain: automation
   input:
     mqtt_topic:
@@ -250,13 +250,11 @@ action:
                   - choose:
                       - conditions:
                           - condition: template
-                            value_template: "{{ state_attr(light_entity, 'effect') in ['none', 'None', null, ''] }}"
+                            value_template: "{{ state_attr(light_entity, 'effect') == 'off' or states(scene_select_entity) in ['unknown', 'unavailable', ''] }}"
                         sequence:
-                          - action: select.select_option
+                          - action: select.select_first
                             target:
                               entity_id: "{{ scene_select_entity }}"
-                            data:
-                              option: "{{ states(scene_select_entity) }}"
                     default:
                       - action: select.select_next
                         target:
