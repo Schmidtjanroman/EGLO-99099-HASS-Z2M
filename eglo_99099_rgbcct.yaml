@@ -1,10 +1,9 @@
 blueprint:
-  name: EGLO 99099 Remote - Zigbee2MQTT RGB-CCT Steuerung (v0.21)
+  name: EGLO 99099 Remote - Zigbee2MQTT RGB-CCT Steuerung (v0.22)
   description: >
-    Version: 0.21
-    Die Tasten Rot, Grün und Blau erhöhen nun den jeweiligen Farbkanal um 10.
-    Wird der Maximalwert (255) erreicht, springt der Wert beim nächsten Tastendruck auf 0 zurück.
-    Die Szenen-Auswahl wurde entfernt.
+    Version: 0.22
+    Die Tasten Rot, Grün und Blau nutzen nun ein mathematisches Raster (Snapping) in Kombination mit einer konfigurierbaren Schrittweite. 
+    Dadurch wird das Einfrieren der Werte durch Rundungsfehler der Zigbee-XY-Konvertierung verhindert und ein linearer Durchlauf bis 255 (mit anschließendem Reset auf 0) erzwungen.
   domain: automation
   input:
     mqtt_topic:
@@ -65,6 +64,16 @@ blueprint:
           step: 50
           unit_of_measurement: "K"
           mode: slider
+    rgb_step:
+      name: RGB-Farbkanalschritt
+      description: Erhöhung pro Tastendruck (Empfehlung 51 für 5 exakte Schritte).
+      default: 51
+      selector:
+        number:
+          min: 10
+          max: 255
+          step: 1
+          mode: slider
 
 mode: restart
 max_exceeded: silent
@@ -81,6 +90,7 @@ action:
       light_entity: !input target_light
       step_pct: !input brightness_step
       step_k: !input cct_step
+      rgb_step: !input rgb_step
       fav1: !input favorite_1_color
       fav2: !input favorite_2_color
       action_trigger: >
@@ -173,8 +183,9 @@ action:
             data:
               rgb_color: >
                 {% set cur_rgb = state_attr(light_entity, 'rgb_color') or [0, 0, 0] %}
-                {% set next_r = 0 if cur_rgb[0] >= 255 else [cur_rgb[0] + 10, 255] | min %}
-                {{ [next_r, cur_rgb[1], cur_rgb[2]] }}
+                {% set snapped = ((cur_rgb[0] / rgb_step) | round(0) * rgb_step) | int %}
+                {% set next_val = 0 if snapped >= (255 - (rgb_step / 2)) else [snapped + rgb_step, 255] | min %}
+                {{ [next_val, cur_rgb[1], cur_rgb[2]] }}
 
       - conditions:
           - condition: template
@@ -186,8 +197,9 @@ action:
             data:
               rgb_color: >
                 {% set cur_rgb = state_attr(light_entity, 'rgb_color') or [0, 0, 0] %}
-                {% set next_g = 0 if cur_rgb[1] >= 255 else [cur_rgb[1] + 10, 255] | min %}
-                {{ [cur_rgb[0], next_g, cur_rgb[2]] }}
+                {% set snapped = ((cur_rgb[1] / rgb_step) | round(0) * rgb_step) | int %}
+                {% set next_val = 0 if snapped >= (255 - (rgb_step / 2)) else [snapped + rgb_step, 255] | min %}
+                {{ [cur_rgb[0], next_val, cur_rgb[2]] }}
 
       - conditions:
           - condition: template
@@ -199,8 +211,9 @@ action:
             data:
               rgb_color: >
                 {% set cur_rgb = state_attr(light_entity, 'rgb_color') or [0, 0, 0] %}
-                {% set next_b = 0 if cur_rgb[2] >= 255 else [cur_rgb[2] + 10, 255] | min %}
-                {{ [cur_rgb[0], cur_rgb[1], next_b] }}
+                {% set snapped = ((cur_rgb[2] / rgb_step) | round(0) * rgb_step) | int %}
+                {% set next_val = 0 if snapped >= (255 - (rgb_step / 2)) else [snapped + rgb_step, 255] | min %}
+                {{ [cur_rgb[0], cur_rgb[1], next_val] }}
 
       - conditions:
           - condition: template
