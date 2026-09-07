@@ -1,16 +1,18 @@
 blueprint:
-  name: EGLO 99099 Remote - Zigbee2MQTT RGB-CCT Steuerung
-  description: V0.8 - Steuerung eines RGB-CCT LED-Streifens über die EGLO 99099 Fernbedienung via Zigbee2MQTT mit Geräteauswahl, Gruppen-Dropdown und 16-stufigem Farbzyklus.
+  name: EGLO 99099 Remote - Zigbee2MQTT RGB-CCT Steuerung (v0.9)
+  description: >
+    Version: 0.9 - Steuerung eines RGB-CCT LED-Streifens über die EGLO 99099 Fernbedienung via Zigbee2MQTT.
+    Nutzt den Action-Sensor zur Geräteerkennung, ein Gruppen-Dropdown (1, 2, 3 oder Alle)
+    und einen 16-stufigen Farbzyklus.
   domain: automation
   input:
-    remote_device:
-      name: Fernbedienung
-      description: Die EGLO 99099 Fernbedienung auswählen.
+    remote_action_sensor:
+      name: Fernbedienung Action Sensor
+      description: Der Action-Sensor der Fernbedienung (z. B. sensor.paula_remote_action).
       selector:
-        device:
-          integration: mqtt
-          manufacturer: EGLO
-          model: 3 groups remote controller
+        entity:
+          filter:
+            - domain: sensor
     remote_group:
       name: Fernbedienungsgruppe
       description: Auf welche Taste/Gruppe der Fernbedienung soll reagiert werden?
@@ -28,7 +30,7 @@ blueprint:
               value: "3"
     target_light:
       name: LED-Streifen
-      description: Der zu steuernde RGB-CCT LED-Streifen.
+      description: Der zu steuernde RGB-CCT LED-Streifen (z. B. Lichtstreifen Hochbett).
       selector:
         entity:
           filter:
@@ -67,30 +69,27 @@ mode: restart
 max_exceeded: silent
 
 trigger:
-  - platform: mqtt
-    topic: zigbee2mqtt/#
+  - platform: state
+    entity_id: !input remote_action_sensor
+
+variables:
+  selected_grp: !input remote_group
+  action_sensor: !input remote_action_sensor
+  light_entity: !input target_light
+  step_pct: !input brightness_step
+  step_k: !input cct_step
+  fav1: !input favorite_1_color
+  fav2: !input favorite_2_color
+  # Ermittelt den Action-State sowie die Gruppe aus den Sensor-Attributen
+  action: "{{ trigger.to_state.state if trigger.to_state is defined else '' }}"
+  current_group: "{{ state_attr(action_sensor, 'action_group') | default(none) | string }}"
 
 condition:
   - condition: template
     value_template: >
-      {% set dev_id = "!input remote_device" %}
-      {% set dev_name = device_attr(dev_id, 'name') %}
-      {% set expected_topic = 'zigbee2mqtt/' ~ dev_name %}
-      {% set pl = trigger.payload_json if trigger.payload_json is defined else {} %}
-      {% set selected_grp = "!input remote_group" %}
-      {% set action_grp = pl.action_group | default(none) | string %}
-      {{ trigger.topic == expected_topic and pl.action is defined and pl.action not in ['', none] and (selected_grp == 'all' or action_grp == selected_grp) }}
+      {{ action not in ['', 'None', 'unknown', 'unavailable'] and (selected_grp == 'all' or current_group == selected_grp) }}
 
 action:
-  - variables:
-      pl: "{{ trigger.payload_json }}"
-      action: "{{ pl.action }}"
-      light_entity: !input target_light
-      step_pct: !input brightness_step
-      step_k: !input cct_step
-      fav1: !input favorite_1_color
-      fav2: !input favorite_2_color
-
   - choose:
       - conditions:
           - condition: template
