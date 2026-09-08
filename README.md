@@ -15,6 +15,10 @@ Mit diesem Blueprint lässt sich die EGLO 99099 Fernbedienung (via Zigbee2MQTT) 
 ```bash
 curl -o /config/blueprints/automation/eglo_99099_rgbcct.yaml [https://raw.githubusercontent.com/Schmidtjanroman/ELGO-99099-HASS-Z2M/main/eglo_99099_rgbcct.yaml](https://raw.githubusercontent.com/Schmidtjanroman/ELGO-99099-HASS-Z2M/main/eglo_99099_rgbcct.yaml)
 <img width="192" height="150" alt="Eglo_99099" src="https://github.com/user-attachments/assets/af3b9015-7c52-4354-805d-c19b941e13b6" />
+````
+
+
+
 
 ![Alt text](./Eglo_99099.svg)
 <img src="./Eglo_99099.svg">
