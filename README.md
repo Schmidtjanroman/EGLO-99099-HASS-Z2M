@@ -3,8 +3,8 @@
 Mit diesem Blueprint lässt sich die EGLO 99099 Fernbedienung (via Zigbee2MQTT) mühelos in Home Assistant integrieren, um RGB-CCT Leuchtmittel zu steuern.
 
 ## Voraussetzungen
-* Home Assistant (aktuelle Version)
-* Zigbee2MQTT (Z2M) eingerichtet
+* Home Assistant (aktuelle Version, getestet mit Core 2026.9.1)
+* Zigbee2MQTT (Z2M) eingerichtet  (https://www.zigbee2mqtt.io/devices/99099.html)
 * EGLO 99099 Fernbedienung (verbunden via Z2M)
 * Kompatibles RGB-CCT Leuchtmittel (Entität `light.*`)
 
